@@ -14,27 +14,32 @@ pub use crate::handler::Handler;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::net::SocketAddr;
+use embedded_io_async::{Read, Write};
 pub use error::Error;
-use esp_async_tcp::{TcpListener, TcpStream};
 pub use httparse::Request;
 use httparse::Status;
 pub use response::Response;
 pub use response_writer::ResponseWriter;
 
-pub async fn serve<H>(listener: TcpListener, handler: H) -> Result<(), Error>
-where
-    H: for<'a> Handler<'a> + Clone,
-{
-    loop {
-        let (stream, addr) = listener.accept().await.map_err(Error::IO)?;
-        if let Err(err) = process_req(stream, addr, handler.clone()).await {
-            log::error!("failed to process req: {err:?}");
-        }
-    }
-}
+// pub async fn serve<H>(listener: TcpListener, handler: H) -> Result<(), Error>
+// where
+//     H: for<'a> Handler<'a> + Clone,
+// {
+//     loop {
+//         let (mut stream, addr) = listener.accept().await.map_err(Error::IO)?;
+//         if let Err(err) = process_req(&mut stream, addr, handler.clone()).await {
+//             log::error!("failed to process req: {err:?}");
+//         }
+//     }
+// }
 
-async fn process_req<H>(mut stream: TcpStream, addr: SocketAddr, handler: H) -> Result<(), Error>
+pub async fn process_req<S, H>(
+    stream: &mut S,
+    addr: SocketAddr,
+    handler: H,
+) -> Result<(), Error<S::Error>>
 where
+    S: Read + Write,
     H: for<'a> Handler<'a>,
 {
     let mut req_buf = Vec::with_capacity(1024);
@@ -81,7 +86,7 @@ where
         .call(addr, req, &req_buf[body_start..])
         .await
         .into()
-        .write_to(&mut stream)
+        .write_to(stream)
         .await
         .map_err(Error::IO)?;
     Ok(())

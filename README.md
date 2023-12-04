@@ -113,7 +113,12 @@ async fn init() -> Result<(), EspError> {
 async fn start_http_server() {
     let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 8080);
     let listener = esp_async_tcp::TcpListener::bind(&addr).unwrap();
-    esp_async_http_server::serve(listener, router).await.unwrap();
+    loop {
+        let (mut stream, addr) = listener.accept().await.unwrap();
+        if let Err(err) = esp_async_http_server::process_req(&mut stream, addr, handler.clone()).await {
+            log::error!("failed to process req: {err:?}");
+        }
+    }
 }
 
 async fn timer_loop(timer: &mut esp_idf_hal::timer::TimerDriver<'_>) {

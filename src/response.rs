@@ -1,7 +1,7 @@
 use crate::ResponseWriter;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use esp_async_tcp::TcpStream;
+use embedded_io_async::{Read, Write};
 
 #[derive(Default, Clone, Debug)]
 pub struct Response {
@@ -14,7 +14,10 @@ pub struct Response {
 }
 
 impl Response {
-    pub async fn write_to(self, stream: &mut TcpStream) -> Result<(), i32> {
+    pub async fn write_to<S>(self, stream: &mut S) -> Result<(), S::Error>
+    where
+        S: Read + Write,
+    {
         stream.write_status(self.status, &self.msg).await?;
         for (k, v) in self.headers.into_iter() {
             stream.write_header(&k, &v).await?;
